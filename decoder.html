@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cipher — Decoder</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p:#37ff8b;--p-dim:#1c8f4d;--p-glow:rgba(55,255,139,.65);
+  --bg:#020705;--panel:rgba(6,26,16,.55);--edge:rgba(55,255,139,.28);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--p);
+  font:15px/1.5 "VT323",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:.4px;
+  text-shadow:0 0 4px var(--p-glow),0 0 10px rgba(55,255,139,.25);
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:5;
+  background:
+    radial-gradient(120% 120% at 50% 50%,transparent 55%,rgba(0,0,0,.55) 100%),
+    radial-gradient(80% 60% at 50% 40%,rgba(55,255,139,.06),transparent 70%);
+}
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:6;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.28) 0px,rgba(0,0,0,.28) 1px,transparent 2px,transparent 3px);
+  mix-blend-mode:multiply;animation:roll 8s linear infinite,flicker .12s steps(2) infinite;
+}
+@keyframes roll{0%{background-position:0 0}100%{background-position:0 100vh}}
+@keyframes flicker{0%{opacity:.92}50%{opacity:1}100%{opacity:.94}}
+@keyframes bootflk{0%{opacity:0}12%{opacity:.6}18%{opacity:.2}25%{opacity:1}100%{opacity:1}}
+.wrap{position:relative;z-index:7;max-width:900px;margin:0 auto;padding:30px 20px 70px;animation:bootflk 1.1s ease-out both}
+h1{font-size:30px;margin:0 0 2px;letter-spacing:2px;text-transform:uppercase}
+h1 .tag{color:#c9ffe2}
+h1 .cur{animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.sub{color:var(--p-dim);font-size:15px;margin:0 0 22px;text-shadow:0 0 3px rgba(28,143,77,.5)}
+.panel{background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:16px;margin:14px 0;
+  box-shadow:0 0 18px rgba(55,255,139,.10) inset,0 0 24px rgba(0,0,0,.6);backdrop-filter:blur(1px)}
+.panel.key{border-color:var(--p);box-shadow:0 0 16px rgba(55,255,139,.25) inset,0 0 24px rgba(0,0,0,.6)}
+label{display:block;color:var(--p-dim);font-size:13px;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
+label.field::before{content:"> "}
+textarea{width:100%;min-height:150px;resize:vertical;background:rgba(0,0,0,.35);color:var(--p);
+  border:1px solid var(--edge);border-radius:4px;padding:12px;font:16px/1.5 inherit;letter-spacing:.4px;
+  word-break:break-all;text-shadow:0 0 4px var(--p-glow);caret-color:var(--p)}
+textarea::placeholder{color:rgba(28,143,77,.7)}
+textarea:focus{outline:none;border-color:var(--p);box-shadow:0 0 12px rgba(55,255,139,.35)}
+textarea:disabled{opacity:.45}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+button,.filebtn{cursor:pointer;border:1px solid var(--p);border-radius:4px;padding:9px 16px;
+  font:600 15px/1 inherit;letter-spacing:1px;text-transform:uppercase;color:var(--p);
+  background:rgba(55,255,139,.08);text-shadow:0 0 5px var(--p-glow);transition:all .12s}
+button:hover,.filebtn:hover{background:rgba(55,255,139,.22);box-shadow:0 0 14px rgba(55,255,139,.5)}
+button:active{transform:translateY(1px)}
+button:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;background:rgba(55,255,139,.05)}
+button.ghost{border-color:var(--edge);color:var(--p-dim)}
+.filebtn{display:inline-block}.filebtn input{display:none}
+.meta{color:var(--p-dim);font-size:14px}
+.status{font-size:15px;margin-top:6px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;vertical-align:middle;
+  background:#ff6f7d;box-shadow:0 0 8px #ff6f7d}
+.dot.on{background:var(--p);box-shadow:0 0 10px var(--p)}
+.msg{margin-top:10px;font-size:14px;min-height:18px}
+.msg.ok{color:var(--p)}.msg.warn{color:#ffe08a;text-shadow:0 0 5px rgba(255,224,138,.6)}
+.msg.err{color:#ff6f7d;text-shadow:0 0 5px rgba(255,111,125,.6)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Cipher <span class="tag">DECODE</span><span class="cur">_</span></h1>
+<p class="sub">// awaiting key + cipher stream</p>
+
+<div class="panel key">
+  <label>Dictionary Key</label>
+  <div class="row">
+    <label class="filebtn">Upload key (.json)<input type="file" accept=".json,application/json,text/plain" onchange="loadKey(this,refresh)"></label>
+    <span class="status"><span class="dot" id="kdot"></span><span id="kstat">No key loaded. Upload a compatible dictionary key to begin.</span></span>
+  </div>
+</div>
+
+
+<div class="panel">
+  <label class="field" for="in">Input</label>
+  <textarea id="in" placeholder="Paste or load the encoded text..."></textarea>
+  <div class="row">
+    <button id="go" onclick="decrypt()" disabled>Decode</button>
+    <label class="filebtn">Load .txt / .md<input type="file" accept=".txt,.md,text/plain,text/markdown" onchange="loadFile(this,'in',null)"></label>
+  </div>
+  <div class="msg" id="dmsg"></div>
+</div>
+<div class="panel">
+  <label class="field" for="out">Output</label>
+  <textarea id="out" readonly placeholder="Decoded message appears here..."></textarea>
+  <div class="row">
+    <button data-msg="dmsg" onclick="copyOut('out',this)">Copy</button>
+    <button onclick="download('out','decoded.txt')">Download .txt</button>
+    <button class="ghost" onclick="document.getElementById('in').value='';document.getElementById('out').value='';say('dmsg','','')">Clear</button>
+  </div>
+</div>
+
+</div>
+<script>
+
+const TOKEN_LEN = 50;
+const TOKENS_PER_CHAR = 1000;
+// The 96 supported plaintext characters: printable ASCII 0x20..0x7E plus newline.
+const SUPPORTED = [];
+for (let c=0x20;c<=0x7E;c++) SUPPORTED.push(String.fromCharCode(c));
+SUPPORTED.push("\n");
+
+let DICT = null;        // active key
+let REV = null;
+
+function rnd(n){
+  const max=Math.floor(0xFFFFFFFF/n)*n, a=new Uint32Array(1);
+  do{crypto.getRandomValues(a);}while(a[0]>=max);
+  return a[0]%n;
+}
+function say(id,cls,txt){const m=document.getElementById(id);m.className='msg '+cls;m.textContent=txt;}
+
+// Validate structure only: every supported symbol has exactly 1000 tokens,
+// each token exactly 50 code points. No checksum by design.
+function validateKey(obj){
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj))
+    return 'Key is incompatible: not a valid key object.';
+  for (const ch of SUPPORTED){
+    const list = obj[ch];
+    if (!Array.isArray(list))
+      return 'Key is incompatible: missing entry for a required symbol.';
+    if (list.length !== TOKENS_PER_CHAR)
+      return 'Key is incompatible: every symbol must have exactly '+TOKENS_PER_CHAR+' possibilities.';
+    for (let i=0;i<list.length;i++){
+      const t = list[i];
+      if (typeof t !== 'string' || Array.from(t).length !== TOKEN_LEN)
+        return 'Key is incompatible: every line must be exactly '+TOKEN_LEN+' characters long.';
+    }
+  }
+  return null; // valid
+}
+
+function loadKey(input, onready){
+  const f = input.files[0]; input.value='';
+  if (!f) return;
+  setKeyStatus(false, 'Reading key...');
+  const r = new FileReader();
+  r.onload = e => {
+    let obj;
+    try { obj = JSON.parse(e.target.result); }
+    catch(err){ DICT=null;REV=null; setKeyStatus(false,'Key is incompatible: not valid JSON.'); onready&&onready(); return; }
+    const problem = validateKey(obj);
+    if (problem){ DICT=null;REV=null; setKeyStatus(false, problem); onready&&onready(); return; }
+    DICT = obj;
+    REV = new Map();
+    for (const ch in DICT){ const l=DICT[ch]; for (let i=0;i<l.length;i++) REV.set(l[i],ch); }
+    setKeyStatus(true, 'Key loaded: '+f.name+'  \u2014  ready.');
+    onready&&onready();
+  };
+  r.onerror = () => { DICT=null;REV=null; setKeyStatus(false,'Failed to read the key file.'); onready&&onready(); };
+  r.readAsText(f);
+}
+
+function setKeyStatus(ok, txt){
+  const dot=document.getElementById('kdot'), t=document.getElementById('kstat');
+  dot.className='dot'+(ok?' on':''); t.textContent=txt;
+}
+
+function download(id,name){
+  const t=document.getElementById(id); if(!t.value) return;
+  const blob=new Blob([t.value],{type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();
+  document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function loadFile(input,targetId,after){
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader(); r.onload=e=>{document.getElementById(targetId).value=e.target.result; after&&after();};
+  r.readAsText(f); input.value='';
+}
+function copyOut(id,btn){
+  const t=document.getElementById(id);
+  const done=()=>{const o=btn.textContent;btn.textContent='COPIED';setTimeout(()=>btn.textContent=o,1200);};
+  t.removeAttribute('readonly'); t.focus(); t.select(); t.setSelectionRange(0,t.value.length);
+  let ok=false; try{ok=document.execCommand('copy');}catch(e){}
+  t.setAttribute('readonly','');
+  if(ok){done();return;}
+  if(navigator.clipboard){navigator.clipboard.writeText(t.value).then(done).catch(()=>say(btn.dataset.msg,'warn','Copy blocked \u2014 select manually or use DOWNLOAD.'));}
+  else say(btn.dataset.msg,'warn','Copy blocked \u2014 select manually or use DOWNLOAD.');
+}
+function requireKey(msgId){
+  if(!DICT){ say(msgId,'err','No key loaded. Upload a compatible dictionary key first.'); return false; }
+  return true;
+}
+
+
+function decrypt(){
+  if(!requireKey('dmsg')) return;
+  let c=document.getElementById('in').value.replace(/\s/gu,'');
+  const cps=Array.from(c);
+  if(cps.length===0){say('dmsg','warn','Nothing to decode.');document.getElementById('out').value='';return;}
+  if(cps.length%TOKEN_LEN!==0){say('dmsg','err','Input corrupted \u2014 length is not a multiple of '+TOKEN_LEN+'. Data altered or wrong key.');return;}
+  const out=[];
+  for(let i=0;i<cps.length;i+=TOKEN_LEN){
+    const ch=REV.get(cps.slice(i,i+TOKEN_LEN).join(''));
+    if(ch===undefined){say('dmsg','err','Unrecognized block #'+(i/TOKEN_LEN+1)+' \u2014 wrong key or corrupted input.');return;}
+    out.push(ch);
+  }
+  document.getElementById('out').value=out.join('');
+  say('dmsg','ok','Decoded '+(cps.length/TOKEN_LEN)+' block(s).');
+}
+function refresh(){document.getElementById('go').disabled=!DICT;}
+
+</script>
+</body>
+</html>

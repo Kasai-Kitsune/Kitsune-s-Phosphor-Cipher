@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cipher — Terminal</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p:#37ff8b;--p-dim:#1c8f4d;--p-glow:rgba(55,255,139,.75);
+  --amber:#ffd27a;--bg:#010402;--panel:rgba(5,22,13,.6);--edge:rgba(55,255,139,.32);
+  --red:#ff3b4e;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:#000;color:var(--p);
+  font:17px/1.45 "VT323",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:.6px;overflow-x:hidden;
+  text-shadow:0 0 5px var(--p-glow),0 0 14px rgba(55,255,139,.28);
+}
+
+/* ---- more aggressive phosphor CRT: heavier curvature illusion, stronger bloom, visible RGB fringe ---- */
+.crt{
+  position:relative;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:
+    radial-gradient(135% 135% at 50% 45%,#04170d 0%,#020a06 50%,#000 100%);
+  overflow:hidden;
+}
+.crt::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:40;
+  background:
+    radial-gradient(120% 120% at 50% 50%,transparent 45%,rgba(0,0,0,.85) 100%),
+    radial-gradient(70% 55% at 50% 38%,rgba(55,255,139,.11),transparent 70%);
+}
+/* fringe: thin red/blue offset ghosting like a poorly converged tube */
+.crt::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:41;mix-blend-mode:screen;opacity:.5;
+  background:
+    repeating-linear-gradient(0deg,rgba(0,0,0,.5) 0px,rgba(0,0,0,.5) 1px,transparent 2px,transparent 3px);
+  animation:flick .09s steps(2) infinite;
+}
+.fringe{position:fixed;inset:0;pointer-events:none;z-index:39;mix-blend-mode:screen;
+  box-shadow:inset 0 0 0 transparent;
+  background:linear-gradient(90deg,rgba(255,40,60,.05),transparent 3px),linear-gradient(-90deg,rgba(60,140,255,.05),transparent 3px);
+}
+.roll{position:fixed;left:0;right:0;height:220px;z-index:42;pointer-events:none;
+  background:linear-gradient(rgba(55,255,139,0),rgba(55,255,139,.1),rgba(55,255,139,0));
+  animation:roll 5.5s linear infinite;}
+@keyframes roll{0%{top:-220px}100%{top:100vh}}
+@keyframes flick{0%{opacity:.9}50%{opacity:1}100%{opacity:.93}}
+
+.poweron{position:fixed;inset:0;z-index:60;background:#000;pointer-events:none;
+  animation:power 1s ease-out forwards;}
+@keyframes power{
+  0%{opacity:1;clip-path:inset(50% 0 50% 0)}
+  10%{opacity:1;clip-path:inset(49.5% 0 49.5% 0);background:#e8fff0}
+  20%{opacity:.9;clip-path:inset(0 0 0 0);background:#bfffd6}
+  45%{opacity:.3;background:#000}
+  100%{opacity:0;clip-path:inset(0 0 0 0)}
+}
+
+.wrap{position:relative;z-index:30;width:100%;max-width:720px;margin:0 auto;padding:34px 22px 60px;
+  animation:jitter 5s infinite}
+@keyframes jitter{0%,96%,100%{transform:translateX(0)}97%{transform:translateX(.8px)}98%{transform:translateX(-.6px)}99%{transform:translateX(.4px)}}
+
+.hidden{display:none !important}
+
+/* boot phase */
+#boot{width:100%}
+#bootlog{white-space:pre-wrap;font-size:17px;min-height:260px}
+#bootlog .ok{color:var(--p)}
+#bootlog .dim{color:var(--p-dim)}
+#bootlog .warn{color:var(--amber)}
+.cur{animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* main phase */
+#main{width:100%}
+h1{font-size:42px;line-height:1;margin:0 0 4px;letter-spacing:3px;text-transform:uppercase;text-align:center}
+h1 .tag{color:var(--amber);text-shadow:0 0 6px rgba(255,210,122,.6)}
+.sub{color:var(--p-dim);font-size:16px;margin:0 0 26px;text-align:center}
+.hr{border:0;border-top:1px dashed var(--edge);margin:16px 0}
+
+.launchers{display:flex;flex-direction:column;gap:16px;margin-top:10px}
+.launch{
+  display:block;position:relative;text-decoration:none;
+  border:1px solid var(--edge);border-radius:6px;padding:18px 20px;
+  background:var(--panel);color:var(--p);
+  box-shadow:0 0 18px rgba(55,255,139,.08) inset,0 0 22px rgba(0,0,0,.7);
+  transition:all .12s;cursor:pointer;
+}
+.launch:hover{border-color:var(--p);background:rgba(55,255,139,.12);box-shadow:0 0 24px rgba(55,255,139,.4) inset,0 0 30px rgba(55,255,139,.25)}
+.launch:active{transform:translateY(1px)}
+.launch .name{font-size:24px;letter-spacing:1.5px;text-transform:uppercase}
+.launch .name::before{content:"\25B8 ";color:var(--amber)}
+.launch .desc{color:var(--p-dim);font-size:15px;margin-top:4px}
+.launch .file{position:absolute;right:18px;top:50%;transform:translateY(-50%);color:var(--p-dim);font-size:14px;opacity:.7}
+
+.launch.amber{border-color:rgba(255,210,122,.35)}
+.launch.amber:hover{border-color:var(--amber);background:rgba(255,210,122,.1);box-shadow:0 0 24px rgba(255,210,122,.35) inset,0 0 30px rgba(255,210,122,.2)}
+.launch.amber .name::before{color:var(--p)}
+
+.mute{position:fixed;top:16px;right:18px;z-index:70;font-size:14px;color:var(--p-dim);cursor:pointer;user-select:none;
+  border:1px solid var(--edge);border-radius:4px;padding:6px 11px;background:rgba(0,0,0,.4)}
+.mute.on{color:var(--p);border-color:var(--p)}
+
+.foot{color:var(--p-dim);font-size:13px;margin-top:28px;text-align:center;opacity:.8}
+</style>
+</head>
+<body>
+<div class="crt">
+  <div class="roll"></div>
+  <div class="fringe"></div>
+  <div class="poweron"></div>
+  <span class="mute on" id="mute">&#9835; Sound: ON</span>
+
+  <div class="wrap">
+
+    <div id="start">
+      <p class="sub" style="margin-bottom:0">// phosphor terminal //</p>
+      <h1 style="font-size:26px;margin-top:14px">PRESS ANY KEY<span class="cur">_</span></h1>
+      <p class="sub">(or tap / click)</p>
+    </div>
+
+    <div id="boot" class="hidden">
+      <div id="bootlog"></div>
+    </div>
+
+    <div id="main" class="hidden">
+      <h1>CIPHER <span class="tag">TERMINAL</span></h1>
+      <p class="sub">// select a module //</p>
+      <hr class="hr">
+
+      <div class="launchers">
+        <a class="launch amber" href="keygen.html" data-snd="amber">
+          <span class="file">keygen.html</span>
+          <div class="name">Kitsune's Key Forge</div>
+          <div class="desc">generate a new cipher key</div>
+        </a>
+        <a class="launch" href="encoder.html" data-snd="p">
+          <span class="file">encoder.html</span>
+          <div class="name">Phosphor Encoder</div>
+          <div class="desc">encrypt a message with a key file</div>
+        </a>
+        <a class="launch" href="decoder.html" data-snd="p">
+          <span class="file">decoder.html</span>
+          <div class="name">Phosphor Decoder</div>
+          <div class="desc">decrypt a message with a key file</div>
+        </a>
+      </div>
+
+      <p class="foot">no data leaves this device &middot; key never uploaded anywhere</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ===================== Retro sound engine ===================== */
+let AC=null, soundOn=true;
+function ac(){ if(!AC){ AC = new (window.AudioContext||window.webkitAudioContext)(); } return AC; }
+function beep(freq, dur, type="square", vol=0.05, when=0){
+  if(!soundOn) return;
+  const c=ac(), t=c.currentTime+when;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type=type; o.frequency.setValueAtTime(freq,t);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(c.destination);
+  o.start(t); o.stop(t+dur+0.02);
+}
+function sBoot(){ beep(160,0.09,"sawtooth",0.06,0); beep(660,0.12,"square",0.05,0.09); }
+function sTick(){ beep(1300+Math.random()*300,0.018,"square",0.02); }
+function sReady(){ [523,659,784,1047].forEach((f,i)=>beep(f,0.14,"square",0.05,i*0.09)); }
+function sHover(){ beep(900,0.03,"square",0.025); }
+function sSelect(freq){ beep(freq,0.05,"square",0.035); beep(freq*1.5,0.08,"square",0.03,0.03); }
+
+document.getElementById("mute").addEventListener("click", ()=>{
+  soundOn=!soundOn;
+  const m=document.getElementById("mute");
+  m.classList.toggle("on",soundOn);
+  m.innerHTML = soundOn ? "&#9835; Sound: ON" : "&#9834; Sound: OFF";
+  if(soundOn) beep(700,0.06,"square",0.04);
+});
+
+/* ===================== Fake short boot sequence ===================== */
+const bootEl = document.getElementById("bootlog");
+const lines = [
+  ["dim","BIOS v2.3 :: PHOSPHOR TERMINAL"],
+  ["dim","checking key modules ..."],
+  ["ok","  keygen.html ......... FOUND"],
+  ["ok","  encoder.html ........ FOUND"],
+  ["ok","  decoder.html ........ FOUND"],
+  ["dim","mounting local filesystem ..."],
+  ["ok","  no network required"],
+  ["warn","  no key loaded (expected)"],
+  ["ok","system ready."],
+];
+
+async function boot(){
+  ac().resume && ac().resume();
+  sBoot();
+  for (let i=0;i<lines.length;i++){
+    const [cls,text] = lines[i];
+    const d=document.createElement("div");
+    d.className=cls;
+    d.textContent=text;
+    bootEl.appendChild(d);
+    sTick();
+    await new Promise(r=>setTimeout(r, 90 + Math.random()*70));
+  }
+  const cur=document.createElement("div");
+  cur.className="dim";
+  cur.innerHTML='&gt; <span class="cur">_</span>';
+  bootEl.appendChild(cur);
+  sReady();
+  await new Promise(r=>setTimeout(r, 380));
+
+  document.getElementById("boot").classList.add("hidden");
+  document.getElementById("main").classList.remove("hidden");
+
+  document.querySelectorAll(".launch").forEach(a=>{
+    a.addEventListener("mouseenter", ()=>sHover());
+    a.addEventListener("click", (e)=>{
+      e.preventDefault();
+      const href=a.getAttribute("href");
+      sSelect(a.dataset.snd==="amber" ? 700 : 500);
+      setTimeout(()=>{ window.location.href=href; }, 140);
+    });
+  });
+}
+
+/* ===================== Gate boot behind first user interaction ===================== */
+/* AudioContext is blocked until a real gesture happens, so we wait for that
+   gesture, unlock/resume the context right on it, then run the boot log
+   so none of its sound gets swallowed. */
+let started=false;
+function startSequence(){
+  if(started) return;
+  started=true;
+  document.getElementById("start").classList.add("hidden");
+  document.getElementById("boot").classList.remove("hidden");
+  ac().resume && ac().resume();
+  boot();
+}
+window.addEventListener("keydown", startSequence, {once:true});
+window.addEventListener("pointerdown", startSequence, {once:true});
+</script>
+</body>
+</html>
